@@ -448,32 +448,6 @@ class BaseNet(nn.Module):
         temporal = torch.cat([temporal_out.view(batch_size, -1, 128), temporal_hid.view(batch_size, -1, 128)], dim = -1)
         return temporal.reshape(batch_size, lng, lat, 256).permute(0, 3, 1, 2).contiguous()
 
-class BaseNet_cg(nn.Module):
-    # base model for crossgtp consist of two residual blocks
-    def __init__(self, num_channels, num_convs):
-        super().__init__()
-        self.num_channels = num_channels
-        self.num_convs = num_convs
-        self.conv1 = nn.Conv2d(num_channels, 64, 3, 1, 1)
-        self.layers = []
-        for i in range(num_convs):
-            self.layers.append(ResUnit(in_channels = 64, out_channels = 64))
-        self.layers = nn.ModuleList(self.layers)
-
-    def forward(self, X):
-        num_lag = X.shape[1] 
-        batch_size = X.shape[0]
-        lng = X.shape[2]
-        lat = X.shape[3]
-        outs = []
-        for i in range(num_lag):
-            input = X[:, i * self.num_channels:(i+1)*self.num_channels, :, :]
-            z = self.conv1(input)
-            for layer in self.layers:
-                z = layer(z)
-            outs.append(z)
-        return outs
-
 
 
 class AdaptNet(nn.Module):
@@ -491,33 +465,7 @@ class AdaptNet(nn.Module):
         z2 = F.relu(z2)
         return [z1, z2]
 
-class AdaptNet_cg(nn.Module):
-    # AdaptNet in crossgtp consist of 1 residual block and 1 lstm
-    def __init__(self, num_channels, num_convs):
-        super().__init__()
-        self.num_channels = num_channels
-        self.num_convs = num_convs
-        self.layers = []
-        for i in range(num_convs):
-            self.layers.append(ResUnit(in_channels = 64, out_channels = 64)) 
-        self.layers = nn.ModuleList(self.layers)
-        self.lstm = nn.LSTM(64, 128)
 
-    def forward(self, ins):
-        batch_size = ins[0].shape[0]
-        # ins is a list of Tensors
-        outs = []
-        for i in range(len(ins)):
-            z = ins[i]
-            for layer in self.layers:
-                z = layer(z)
-            z = z.permute(0, 2, 3, 1).reshape(batch_size, -1, 64).contiguous()
-            outs.append(z.view(-1, 64))
-        z = torch.stack(outs, dim = 0)
-        temporal_out, (temporal_hid, _) = self.lstm(z)
-        temporal_out = temporal_out[-1:, :]
-        temporal = torch.cat([temporal_out.view(batch_size, -1, 128), temporal_hid.view(batch_size, -1, 128)], dim = -1)
-        return outs, temporal # list of (b, N, 64), (B, N, F)
 
 class PredNet(nn.Module):
     # PredNet aims to generate predictions
@@ -528,55 +476,3 @@ class PredNet(nn.Module):
     def forward(self, X):
         return self.conv(X)
 
-class PredNet_cg(nn.Module):
-    # PredNet in crossgtp consist of 1 linear layer
-    def __init__(self):
-        super().__init__()
-        self.linear = nn.Linear(256, 1)
-
-    def forward(self, temporal):
-        return self.linear(temporal).permute(0, 2, 1)
-        # it takes B, N, F in, and outputs B, 1, N
-
-class CrossGTPNet2(nn.Module):
-    # CrossGTPNet2 consist of a GAT layer and a prediction layer 
-    def __init__(self, in_dim, source_embs, target_embs, spatial_mask, topk = 10):
-        super().__init__()
-        # construct graphs
-        self.in_dim = in_dim
-        self.spatial_mask = spatial_mask.bool()
-        self.source_embs = source_embs / np.sqrt(1e-5 + (source_embs ** 2).sum(1, keepdims = True))
-        self.target_embs = target_embs / np.sqrt(1e-5 + (target_embs ** 2).sum(1, keepdims = True))
-        # normalize
-        self.cossim = np.matmul(self.source_embs, self.target_embs.T)
-        # build knn graph
-        edge_list = []
-        self.topk = topk
-        for j in range(self.cossim.shape[1]):
-            cossim = self.cossim[:, j]
-            knn = np.argsort(cossim)[-topk:]
-            for i in knn:
-                edge_list.append((i, j))
-                # only from s to t
-        print("Cross city similarity graph: %d source, %d target, %d edges" % (self.cossim.shape[0], self.cossim.shape[1], len(edge_list)))
-        edge_source = []
-        edge_target = []
-        for i, j in edge_list:
-            edge_source.append(i)
-            edge_target.append(j + self.cossim.shape[0])
-        # add self loop
-        for i in range(self.cossim.shape[0] + self.cossim.shape[1]):
-            edge_source.append(i)
-            edge_target.append(i)
-        self.crosscity_graph = dgl.graph((torch.Tensor(edge_source).long(), torch.Tensor(edge_target).long()))
-        self.feat_gatconv = BatchGATConv(in_feats = in_dim, out_feats = 16, num_heads = 4, residual = True)
-
-        self.prediction_linear = nn.Linear(64, 1)
-    
-    def forward(self, source_feats, target_feats):
-        # source_feats: (B, F, N)
-        # target_feats: (B, F, N)
-        concat_feats = torch.cat([source_feats, target_feats], dim = -1).permute(2, 0, 1).contiguous()
-        propagated_feat = F.relu(self.feat_gatconv(self.crosscity_graph, concat_feats).flatten(2))[self.cossim.shape[0]:, :, :]
-        predict = self.prediction_linear(propagated_feat).permute(1, 2, 0).contiguous()
-        return predict # (B, N, 1)
