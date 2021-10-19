@@ -299,32 +299,16 @@ for ep in range(num_epochs):
         print("[%.2fs]Epoch %d, average pred loss %.4f" % (time.time() - start_time, ep, avg_loss))
     source_net.eval()
     target_net.eval()
-    rmse_vals = []
-    mae_vals = []
-    rmse_tests = []
-    mae_tests = []
-    # for i in range(3):
+
     rmse_val, mae_val = evaluate(source_net, target_net, val_x, val_y, val_hours, val_weekdays)
     rmse_test, mae_test = evaluate(source_net, target_net, test_x, test_y, test_hours, test_weekdays)
-    # rmse_vals.append(rmse_val)
-    # mae_vals.append(mae_val)
-    # rmse_tests.append(rmse_test)
-    # mae_tests.append(mae_test)
     
     if rmse_val < best_val_rmse:
         best_val_rmse =  rmse_val
         best_test_rmse = rmse_test
         best_test_mae = mae_test
         print("Update best test...")
-    """
-    if np.mean(rmse_vals) < best_val_rmse:
-        best_val_rmse = np.mean(rmse_vals)
-        best_test_rmse = np.mean(rmse_tests)
-        best_test_mae = np.mean(mae_tests)
-        print("Update best test ...")
-        print("RMSE vals: %s" % str(rmse_vals))
-        print("RMSE tests: %s" % str(rmse_tests))
-    """
+
     print("validation rmse %.4f, mae %.4f" % (rmse_val * (max_val - min_val), mae_val * (max_val - min_val)))
     print("test rmse %.4f, mae %.4f" % (rmse_test * (max_val - min_val), mae_test * (max_val - min_val)))
     print()
