@@ -14,6 +14,7 @@ The zip file contain data for cities New York, Chicago, Washington DC and Boston
 ## Code
 
 After settling down some path and dependency issues, you can run the domain adaptive region embeddings via: 
+
 `python run_mvgcn_da.py --scity X --tcity Y`
 
 You can also personalize parameters. run `python run_mvgcn_da.py --help` for detailed parameter list.
