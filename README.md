@@ -18,3 +18,11 @@ After settling down some path and dependency issues, you can run the domain adap
 `python run_mvgcn_da.py --scity X --tcity Y`
 
 You can also personalize parameters. run `python run_mvgcn_da.py --help` for detailed parameter list.
+
+After training the region embeddings, you can run CrossGTP via: 
+
+`python run_crossgtp.py --scity X --tcity Y --source_model MODELPATH --emb_name EMBPATH`
+
+where `MODELPATH` denotes a path to load the pretrained source model, and `EMBPATH` denote the path to the learned embeddings.
+
+(Again, you may need to settle some minor path issues.) 
