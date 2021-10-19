@@ -25,4 +25,4 @@ After training the region embeddings, you can run CrossGTP via:
 
 where `MODELPATH` denotes a path to load the pretrained source model, and `EMBPATH` denote the path to the learned embeddings.
 
-(Again, you may need to settle some minor path issues.) 
+Again, you may need to settle some minor path issues. You can also set personalized parameters (See `python run_crossgtp.py --help` for details). 
